@@ -1,6 +1,7 @@
 using OutlookComMcp.Models;
 using OutlookComMcp.Outlook;
 using OutlookComMcp.Tools;
+using Xunit;
 
 namespace OutlookComMcp.Tests;
 
@@ -126,4 +127,3 @@ public sealed class OutlookToolsTests
         }
     }
 }
-
