@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace OutlookComMcp.Models;
 
 public sealed record MailSummary(
@@ -9,6 +11,7 @@ public sealed record MailSummary(
     DateTimeOffset ReceivedAt,
     bool IsUnread,
     bool HasAttachments,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     string? BodyPreview);
 
 public sealed record MailDetail(
@@ -45,4 +48,3 @@ public sealed record ReplyDraft(
     string Cc,
     bool IsReplyAll,
     string Status);
-

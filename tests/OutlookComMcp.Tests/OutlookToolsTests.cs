@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using OutlookComMcp.Models;
 using OutlookComMcp.Outlook;
 using OutlookComMcp.Tools;
@@ -7,6 +9,31 @@ namespace OutlookComMcp.Tests;
 
 public sealed class OutlookToolsTests
 {
+    private static readonly JsonSerializerOptions NullOmittingJsonOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
+    [Fact]
+    public void MailSummarySerializesNullBodyPreview()
+    {
+        MailSummary summary = new(
+            "email-id",
+            "store-id",
+            "Subject",
+            "Sender",
+            "sender@example.com",
+            new DateTimeOffset(2026, 7, 17, 9, 0, 0, TimeSpan.FromHours(9)),
+            false,
+            false,
+            null);
+
+        string json = JsonSerializer.Serialize(summary, NullOmittingJsonOptions);
+
+        Assert.Contains("\"bodyPreview\":null", json, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task SearchEmailsPassesValidatedArgumentsToClient()
     {
