@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore OutlookComMcp.sln
+
+      - name: Build
+        run: dotnet build OutlookComMcp.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test OutlookComMcp.sln --configuration Release --no-build
+
