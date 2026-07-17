@@ -52,7 +52,7 @@ public sealed class OutlookComClient(StaDispatcher dispatcher) : IOutlookClient
             () => CreateReplyDraft(emailId, storeId, body, replyAll),
             cancellationToken);
 
-    private static List<MailSummary> SearchEmails(
+    private static IReadOnlyList<MailSummary> SearchEmails(
         string folderName,
         string? query,
         int daysBack,
@@ -185,7 +185,7 @@ public sealed class OutlookComClient(StaDispatcher dispatcher) : IOutlookClient
         }
     }
 
-    private static List<CalendarEvent> ListCalendarEvents(
+    private static IReadOnlyList<CalendarEvent> ListCalendarEvents(
         DateTimeOffset startsAfter,
         DateTimeOffset endsBefore,
         int maxResults)
