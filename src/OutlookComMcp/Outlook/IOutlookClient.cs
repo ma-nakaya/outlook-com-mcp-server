@@ -10,6 +10,19 @@ public interface IOutlookClient
         int daysBack,
         int maxResults,
         bool includeBodyPreview,
+        string? folderId,
+        string? storeId,
+        bool includeSubfolders,
+        bool unreadOnly,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<MailFolderInfo>> ListMailFoldersAsync(
+        string folder,
+        string? parentFolderId,
+        string? storeId,
+        bool recursive,
+        int maxResults,
+        int maxDepth,
         CancellationToken cancellationToken);
 
     Task<MailDetail> GetEmailAsync(
@@ -22,6 +35,12 @@ public interface IOutlookClient
         DateTimeOffset startsAfter,
         DateTimeOffset endsBefore,
         int maxResults,
+        CancellationToken cancellationToken);
+
+    Task<EmailReadState> SetEmailReadStateAsync(
+        string emailId,
+        string storeId,
+        bool isRead,
         CancellationToken cancellationToken);
 
     Task<ReplyDraft> CreateReplyDraftAsync(

@@ -48,3 +48,21 @@ public sealed record ReplyDraft(
     string Cc,
     bool IsReplyAll,
     string Status);
+
+public sealed record MailFolderInfo(
+    string FolderId,
+    string StoreId,
+    string Name,
+    string FolderPath,
+    string? ParentFolderId,
+    int UnreadItemCount,
+    int TotalItemCount,
+    bool HasChildren);
+
+public sealed record EmailReadState(
+    string EmailId,
+    string StoreId,
+    string Subject,
+    DateTimeOffset ReceivedAt,
+    bool IsRead,
+    string Status);

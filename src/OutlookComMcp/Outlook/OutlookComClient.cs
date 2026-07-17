@@ -19,9 +19,34 @@ public sealed class OutlookComClient(StaDispatcher dispatcher) : IOutlookClient
         int daysBack,
         int maxResults,
         bool includeBodyPreview,
+        string? folderId,
+        string? storeId,
+        bool includeSubfolders,
+        bool unreadOnly,
         CancellationToken cancellationToken) =>
         dispatcher.InvokeAsync<IReadOnlyList<MailSummary>>(
-            () => SearchEmails(folder, query, daysBack, maxResults, includeBodyPreview),
+            () => SearchEmails(
+                folder,
+                query,
+                daysBack,
+                maxResults,
+                includeBodyPreview,
+                folderId,
+                storeId,
+                includeSubfolders,
+                unreadOnly),
+            cancellationToken);
+
+    public Task<IReadOnlyList<MailFolderInfo>> ListMailFoldersAsync(
+        string folder,
+        string? parentFolderId,
+        string? storeId,
+        bool recursive,
+        int maxResults,
+        int maxDepth,
+        CancellationToken cancellationToken) =>
+        dispatcher.InvokeAsync<IReadOnlyList<MailFolderInfo>>(
+            () => ListMailFolders(folder, parentFolderId, storeId, recursive, maxResults, maxDepth),
             cancellationToken);
 
     public Task<MailDetail> GetEmailAsync(
@@ -31,6 +56,15 @@ public sealed class OutlookComClient(StaDispatcher dispatcher) : IOutlookClient
         CancellationToken cancellationToken) =>
         dispatcher.InvokeAsync(
             () => GetEmail(emailId, storeId, maxBodyCharacters),
+            cancellationToken);
+
+    public Task<EmailReadState> SetEmailReadStateAsync(
+        string emailId,
+        string storeId,
+        bool isRead,
+        CancellationToken cancellationToken) =>
+        dispatcher.InvokeAsync(
+            () => SetEmailReadState(emailId, storeId, isRead),
             cancellationToken);
 
     public Task<IReadOnlyList<CalendarEvent>> ListCalendarEventsAsync(
@@ -57,36 +91,94 @@ public sealed class OutlookComClient(StaDispatcher dispatcher) : IOutlookClient
         string? query,
         int daysBack,
         int maxResults,
-        bool includeBodyPreview)
+        bool includeBodyPreview,
+        string? folderId,
+        string? storeId,
+        bool includeSubfolders,
+        bool unreadOnly)
     {
         object? application = null;
         object? session = null;
-        object? folder = null;
-        object? items = null;
+        object? rootFolder = null;
 
         try
         {
             (application, session) = OpenSession();
             dynamic outlookSession = session;
-            folder = outlookSession.GetDefaultFolder(GetFolderId(folderName));
-            dynamic outlookFolder = folder;
-            string storeId = Convert.ToString(outlookFolder.StoreID, CultureInfo.InvariantCulture) ?? string.Empty;
-
-            items = outlookFolder.Items;
-            dynamic outlookItems = items;
-            outlookItems.Sort("[ReceivedTime]", true);
+            rootFolder = ResolveFolder(outlookSession, folderName, folderId, storeId);
 
             DateTime cutoff = DateTime.Now.AddDays(-daysBack);
             string normalizedQuery = query?.Trim() ?? string.Empty;
             List<MailSummary> results = [];
-            int itemCount = Math.Min(Convert.ToInt32(outlookItems.Count, CultureInfo.InvariantCulture), MaximumScannedItems);
+            int scannedItems = 0;
+            int scannedFolders = 0;
 
-            for (int index = 1; index <= itemCount && results.Count < maxResults; index++)
+            SearchFolder(
+                rootFolder,
+                normalizedQuery,
+                cutoff,
+                includeBodyPreview,
+                unreadOnly,
+                includeSubfolders,
+                0,
+                10,
+                ref scannedItems,
+                ref scannedFolders,
+                results);
+
+            return results
+                .OrderByDescending(mail => mail.ReceivedAt)
+                .Take(maxResults)
+                .ToList();
+        }
+        finally
+        {
+            ComObject.Release(rootFolder);
+            ComObject.Release(session);
+            ComObject.Release(application);
+        }
+    }
+
+    private static void SearchFolder(
+        object folderObject,
+        string query,
+        DateTime cutoff,
+        bool includeBodyPreview,
+        bool unreadOnly,
+        bool includeSubfolders,
+        int depth,
+        int maxDepth,
+        ref int scannedItems,
+        ref int scannedFolders,
+        List<MailSummary> results)
+    {
+        if (scannedFolders >= 100 || scannedItems >= MaximumScannedItems)
+        {
+            return;
+        }
+
+        scannedFolders++;
+        dynamic folder = folderObject;
+        string storeId = Convert.ToString(folder.StoreID, CultureInfo.InvariantCulture) ?? string.Empty;
+        object? items = null;
+        object? childFolders = null;
+
+        try
+        {
+            items = folder.Items;
+            dynamic outlookItems = items;
+            outlookItems.Sort("[ReceivedTime]", true);
+            int itemCount = Math.Min(
+                Convert.ToInt32(outlookItems.Count, CultureInfo.InvariantCulture),
+                MaximumScannedItems - scannedItems);
+
+            for (int index = 1; index <= itemCount && scannedItems < MaximumScannedItems; index++)
             {
                 object? item = null;
                 try
                 {
                     item = outlookItems[index];
+                    scannedItems++;
                     dynamic mail = item;
                     if (Convert.ToInt32(mail.Class, CultureInfo.InvariantCulture) != MailItemClass)
                     {
@@ -99,19 +191,23 @@ public sealed class OutlookComClient(StaDispatcher dispatcher) : IOutlookClient
                         break;
                     }
 
-                    string subject = Convert.ToString(mail.Subject, CultureInfo.CurrentCulture) ?? string.Empty;
-                    string senderName = Convert.ToString(mail.SenderName, CultureInfo.CurrentCulture) ?? string.Empty;
-                    string senderAddress = ResolveSenderAddress(mail);
-                    if (!Matches(normalizedQuery, subject, senderName, senderAddress))
+                    bool isUnread = Convert.ToBoolean(mail.UnRead, CultureInfo.InvariantCulture);
+                    if (unreadOnly && !isUnread)
                     {
                         continue;
                     }
 
-                    string? preview = null;
-                    if (includeBodyPreview)
+                    string subject = Convert.ToString(mail.Subject, CultureInfo.CurrentCulture) ?? string.Empty;
+                    string senderName = Convert.ToString(mail.SenderName, CultureInfo.CurrentCulture) ?? string.Empty;
+                    string senderAddress = ResolveSenderAddress(mail);
+                    if (!Matches(query, subject, senderName, senderAddress))
                     {
-                        preview = Truncate(Convert.ToString(mail.Body, CultureInfo.CurrentCulture) ?? string.Empty, BodyPreviewCharacters);
+                        continue;
                     }
+
+                    string? preview = includeBodyPreview
+                        ? Truncate(Convert.ToString(mail.Body, CultureInfo.CurrentCulture) ?? string.Empty, BodyPreviewCharacters)
+                        : null;
 
                     results.Add(new(
                         Convert.ToString(mail.EntryID, CultureInfo.InvariantCulture) ?? string.Empty,
@@ -120,7 +216,7 @@ public sealed class OutlookComClient(StaDispatcher dispatcher) : IOutlookClient
                         senderName,
                         senderAddress,
                         ToDateTimeOffset(receivedAt),
-                        Convert.ToBoolean(mail.UnRead, CultureInfo.InvariantCulture),
+                        isUnread,
                         HasAttachments(mail),
                         preview));
                 }
@@ -130,16 +226,154 @@ public sealed class OutlookComClient(StaDispatcher dispatcher) : IOutlookClient
                 }
             }
 
+            if (!includeSubfolders || depth >= maxDepth || scannedFolders >= 100)
+            {
+                return;
+            }
+
+            childFolders = folder.Folders;
+            dynamic folders = childFolders;
+            int childCount = Convert.ToInt32(folders.Count, CultureInfo.InvariantCulture);
+            for (int index = 1; index <= childCount && scannedFolders < 100; index++)
+            {
+                object? child = null;
+                try
+                {
+                    child = folders[index];
+                    SearchFolder(
+                        child,
+                        query,
+                        cutoff,
+                        includeBodyPreview,
+                        unreadOnly,
+                        true,
+                        depth + 1,
+                        maxDepth,
+                        ref scannedItems,
+                        ref scannedFolders,
+                        results);
+                }
+                finally
+                {
+                    ComObject.Release(child);
+                }
+            }
+        }
+        finally
+        {
+            ComObject.Release(childFolders);
+            ComObject.Release(items);
+        }
+    }
+
+    private static List<MailFolderInfo> ListMailFolders(
+        string folderName,
+        string? parentFolderId,
+        string? storeId,
+        bool recursive,
+        int maxResults,
+        int maxDepth)
+    {
+        object? application = null;
+        object? session = null;
+        object? rootFolder = null;
+
+        try
+        {
+            (application, session) = OpenSession();
+            dynamic outlookSession = session;
+            rootFolder = ResolveFolder(outlookSession, folderName, parentFolderId, storeId);
+            List<MailFolderInfo> results = [];
+            AddFolderAndChildren(rootFolder, null, recursive, 0, maxDepth, maxResults, results);
             return results;
         }
         finally
         {
-            ComObject.Release(items);
-            ComObject.Release(folder);
+            ComObject.Release(rootFolder);
             ComObject.Release(session);
             ComObject.Release(application);
         }
     }
+
+    private static void AddFolderAndChildren(
+        object folderObject,
+        string? parentFolderId,
+        bool recursive,
+        int depth,
+        int maxDepth,
+        int maxResults,
+        List<MailFolderInfo> results)
+    {
+        if (results.Count >= maxResults)
+        {
+            return;
+        }
+
+        dynamic folder = folderObject;
+        object? items = null;
+        object? childFolders = null;
+        try
+        {
+            string folderId = Convert.ToString(folder.EntryID, CultureInfo.InvariantCulture) ?? string.Empty;
+            childFolders = folder.Folders;
+            dynamic folders = childFolders;
+            int childCount = Convert.ToInt32(folders.Count, CultureInfo.InvariantCulture);
+
+            items = folder.Items;
+            dynamic outlookItems = items;
+            int totalItemCount = Convert.ToInt32(outlookItems.Count, CultureInfo.InvariantCulture);
+
+            results.Add(new(
+                folderId,
+                Convert.ToString(folder.StoreID, CultureInfo.InvariantCulture) ?? string.Empty,
+                Convert.ToString(folder.Name, CultureInfo.CurrentCulture) ?? string.Empty,
+                Convert.ToString(folder.FolderPath, CultureInfo.CurrentCulture) ?? string.Empty,
+                parentFolderId,
+                Convert.ToInt32(folder.UnReadItemCount, CultureInfo.InvariantCulture),
+                totalItemCount,
+                childCount > 0));
+
+            if (!recursive || depth >= maxDepth)
+            {
+                return;
+            }
+
+            for (int index = 1; index <= childCount && results.Count < maxResults; index++)
+            {
+                object? child = null;
+                try
+                {
+                    child = folders[index];
+                    AddFolderAndChildren(
+                        child,
+                        folderId,
+                        true,
+                        depth + 1,
+                        maxDepth,
+                        maxResults,
+                        results);
+                }
+                finally
+                {
+                    ComObject.Release(child);
+                }
+            }
+        }
+        finally
+        {
+            ComObject.Release(childFolders);
+            ComObject.Release(items);
+        }
+    }
+
+    private static object ResolveFolder(
+        dynamic outlookSession,
+        string folderName,
+        string? folderId,
+        string? storeId) =>
+        string.IsNullOrWhiteSpace(folderId)
+            ? outlookSession.GetDefaultFolder(GetFolderId(folderName))
+            : outlookSession.GetFolderFromID(folderId, storeId);
 
     private static MailDetail GetEmail(string emailId, string storeId, int maxBodyCharacters)
     {
@@ -176,6 +410,40 @@ public sealed class OutlookComClient(StaDispatcher dispatcher) : IOutlookClient
                 HasAttachments(mail),
                 body,
                 truncated);
+        }
+        finally
+        {
+            ComObject.Release(item);
+            ComObject.Release(session);
+            ComObject.Release(application);
+        }
+    }
+
+    private static EmailReadState SetEmailReadState(string emailId, string storeId, bool isRead)
+    {
+        object? application = null;
+        object? session = null;
+        object? item = null;
+
+        try
+        {
+            (application, session) = OpenSession();
+            dynamic outlookSession = session;
+            item = outlookSession.GetItemFromID(emailId, storeId);
+            dynamic mail = item;
+            EnsureMailItem(mail);
+
+            mail.UnRead = !isRead;
+            mail.Save();
+
+            DateTime receivedAt = Convert.ToDateTime(mail.ReceivedTime, CultureInfo.CurrentCulture);
+            return new(
+                Convert.ToString(mail.EntryID, CultureInfo.InvariantCulture) ?? emailId,
+                storeId,
+                Convert.ToString(mail.Subject, CultureInfo.CurrentCulture) ?? string.Empty,
+                ToDateTimeOffset(receivedAt),
+                !Convert.ToBoolean(mail.UnRead, CultureInfo.InvariantCulture),
+                "read_state_updated");
         }
         finally
         {

@@ -31,12 +31,25 @@ public sealed class OutlookTools(IOutlookClient outlookClient)
         int maxResults = 20,
         [Description("Include up to 500 characters of body preview. Defaults to false.")]
         bool includeBodyPreview = false,
+        [Description("Optional Outlook folder EntryID. When supplied, folder is used only as a fallback.")]
+        string? folderId = null,
+        [Description("Outlook StoreID for folderId. Required when folderId is supplied.")]
+        string? storeId = null,
+        [Description("Search child folders recursively. Defaults to false.")]
+        bool includeSubfolders = false,
+        [Description("Return unread messages only. Defaults to false.")]
+        bool unreadOnly = false,
         CancellationToken cancellationToken = default)
     {
         folder = folder.Trim().ToLowerInvariant();
         if (folder is not ("inbox" or "sent" or "sent_mail" or "drafts"))
         {
             throw new ArgumentOutOfRangeException(nameof(folder), "Supported folders: inbox, sent, drafts.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(folderId) && string.IsNullOrWhiteSpace(storeId))
+        {
+            throw new ArgumentException("storeId is required when folderId is supplied.", nameof(storeId));
         }
 
         daysBack = RequireRange(daysBack, 1, 365, nameof(daysBack));
@@ -47,6 +60,59 @@ public sealed class OutlookTools(IOutlookClient outlookClient)
             daysBack,
             maxResults,
             includeBodyPreview,
+            folderId,
+            storeId,
+            includeSubfolders,
+            unreadOnly,
+            cancellationToken);
+    }
+
+    [McpServerTool(
+        Name = "list_mail_folders",
+        Title = "List Outlook mail folders",
+        ReadOnly = true,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description(
+        "List Classic Outlook mail folders starting at Inbox, Sent, Drafts, or a supplied parent folder. " +
+        "Use returned folderId and storeId values with search_emails.")]
+    public Task<IReadOnlyList<MailFolderInfo>> ListMailFoldersAsync(
+        [Description("Fallback root folder: inbox, sent, or drafts. Defaults to inbox.")]
+        string folder = "inbox",
+        [Description("Optional parent folder EntryID.")]
+        string? parentFolderId = null,
+        [Description("Outlook StoreID for parentFolderId. Required when parentFolderId is supplied.")]
+        string? storeId = null,
+        [Description("Include descendants recursively. Defaults to true.")]
+        bool recursive = true,
+        [Description("Maximum folders returned, from 1 to 200. Defaults to 100.")]
+        int maxResults = 100,
+        [Description("Maximum recursion depth, from 1 to 10. Defaults to 5.")]
+        int maxDepth = 5,
+        CancellationToken cancellationToken = default)
+    {
+        folder = folder.Trim().ToLowerInvariant();
+        if (folder is not ("inbox" or "sent" or "sent_mail" or "drafts"))
+        {
+            throw new ArgumentOutOfRangeException(nameof(folder), "Supported folders: inbox, sent, drafts.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(parentFolderId) && string.IsNullOrWhiteSpace(storeId))
+        {
+            throw new ArgumentException("storeId is required when parentFolderId is supplied.", nameof(storeId));
+        }
+
+        maxResults = RequireRange(maxResults, 1, 200, nameof(maxResults));
+        maxDepth = RequireRange(maxDepth, 1, 10, nameof(maxDepth));
+        return outlookClient.ListMailFoldersAsync(
+            folder,
+            parentFolderId,
+            storeId,
+            recursive,
+            maxResults,
+            maxDepth,
             cancellationToken);
     }
 
@@ -110,6 +176,32 @@ public sealed class OutlookTools(IOutlookClient outlookClient)
 
         maxResults = RequireRange(maxResults, 1, 100, nameof(maxResults));
         return outlookClient.ListCalendarEventsAsync(start, end, maxResults, cancellationToken);
+    }
+
+    [McpServerTool(
+        Name = "set_email_read_state",
+        Title = "Set Outlook email read state",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description(
+        "Explicitly mark one Classic Outlook email as read or unread. " +
+        "Searching and reading messages never changes their read state. " +
+        "Call this tool only after the user explicitly requests the state change.")]
+    public Task<EmailReadState> SetEmailReadStateAsync(
+        [Description("Email EntryID returned by search_emails.")]
+        string emailId,
+        [Description("Outlook StoreID returned by search_emails.")]
+        string storeId,
+        [Description("True to mark as read; false to mark as unread.")]
+        bool isRead,
+        CancellationToken cancellationToken = default)
+    {
+        RequireValue(emailId, nameof(emailId));
+        RequireValue(storeId, nameof(storeId));
+        return outlookClient.SetEmailReadStateAsync(emailId, storeId, isRead, cancellationToken);
     }
 
     [McpServerTool(
