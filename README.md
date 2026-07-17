@@ -13,8 +13,10 @@ It is deliberately narrow:
 
 - Read mail metadata and selected message bodies.
 - Read calendar events.
+- Enumerate Inbox, Sent, or Drafts folder trees and search nested folders.
 - Save a reply or reply-all message to Outlook Drafts.
-- Never send, delete, move, or mark messages as read.
+- Explicitly mark one selected message as read or unread.
+- Never send, delete, move, or archive messages.
 
 ## Status
 
@@ -40,8 +42,10 @@ The implementation uses late-bound COM instead of redistributing Outlook interop
 
 | Tool | Effect | Notes |
 | --- | --- | --- |
-| `search_emails` | Read-only | Searches Inbox, Sent, or Drafts by subject or sender. Body previews are opt-in. |
+| `search_emails` | Read-only | Searches Inbox, Sent, Drafts, or a supplied folder. Supports recursive and unread-only searches. Body previews are opt-in. |
+| `list_mail_folders` | Read-only | Lists a mail folder tree and returns folder/store IDs for targeted searches. |
 | `get_email` | Read-only | Reads one message using the `EmailId` and `StoreId` returned by search. |
+| `set_email_read_state` | State change | Explicitly marks one selected message as read or unread. Search and read tools never change this state. |
 | `list_calendar_events` | Read-only | Lists events overlapping an ISO 8601 range of up to 31 days. |
 | `create_reply_draft` | Additive write | Saves a reply draft. It does not send mail. Reply-all must be explicitly requested. |
 
@@ -120,8 +124,9 @@ See the [Secure MCP Tunnel documentation](https://developers.openai.com/api/docs
 ## Safety boundaries
 
 - No send tool exists.
-- No delete, move, archive, or mark-as-read tool exists.
+- No delete, move, archive, or send tool exists.
 - `create_reply_draft` is annotated as a non-read-only, non-idempotent tool so clients can require confirmation.
+- `set_email_read_state` is non-read-only but idempotent. It requires an exact email/store ID and never runs implicitly.
 - Reply-all defaults to `false`.
 - Search results, body size, scan count, calendar range, and reply body size are bounded.
 - stdout is reserved for MCP transport; application errors use stderr.
@@ -132,7 +137,8 @@ Saving a draft is still a write operation. Review the recipients and content in 
 ## Known limitations
 
 - Classic Outlook only; new Outlook does not expose the COM object model.
-- Searches currently cover default Inbox, Sent, and Drafts folders, not arbitrary nested folders or shared stores.
+- Folder listing and recursive search start from the default Inbox, Sent, Drafts, or a supplied folder ID. Whole-store and shared-store discovery are not yet implemented.
+- Recursive mail search is bounded to 100 folders, 10 levels, and 5,000 scanned items.
 - Calendar access currently uses the default calendar.
 - Body output is plain text. Rich HTML composition and signature insertion are not yet implemented.
 - Runtime integration tests require a Windows machine with a configured Outlook profile; CI runs unit tests without Outlook.
