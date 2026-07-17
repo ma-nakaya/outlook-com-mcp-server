@@ -9,6 +9,12 @@ namespace OutlookComMcp.Tests;
 
 public sealed class OutlookToolsTests
 {
+    private static readonly JsonSerializerOptions NullOmittingJsonOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
     [Fact]
     public void MailSummarySerializesNullBodyPreview()
     {
@@ -18,17 +24,12 @@ public sealed class OutlookToolsTests
             "Subject",
             "Sender",
             "sender@example.com",
-            DateTimeOffset.Parse("2026-07-17T09:00:00+09:00"),
+            new DateTimeOffset(2026, 7, 17, 9, 0, 0, TimeSpan.FromHours(9)),
             false,
             false,
             null);
-        JsonSerializerOptions options = new()
-        {
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        };
 
-        string json = JsonSerializer.Serialize(summary, options);
+        string json = JsonSerializer.Serialize(summary, NullOmittingJsonOptions);
 
         Assert.Contains("\"bodyPreview\":null", json, StringComparison.Ordinal);
     }
