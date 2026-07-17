@@ -1,0 +1,25 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OutlookComMcp", "src\OutlookComMcp\OutlookComMcp.csproj", "{8FA7E138-BF8C-4AF0-B0C4-AE1427F3D5C2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OutlookComMcp.Tests", "tests\OutlookComMcp.Tests\OutlookComMcp.Tests.csproj", "{D84F85A6-8F84-48B2-B8A7-C73865CC6E07}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8FA7E138-BF8C-4AF0-B0C4-AE1427F3D5C2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8FA7E138-BF8C-4AF0-B0C4-AE1427F3D5C2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8FA7E138-BF8C-4AF0-B0C4-AE1427F3D5C2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8FA7E138-BF8C-4AF0-B0C4-AE1427F3D5C2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D84F85A6-8F84-48B2-B8A7-C73865CC6E07}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D84F85A6-8F84-48B2-B8A7-C73865CC6E07}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D84F85A6-8F84-48B2-B8A7-C73865CC6E07}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D84F85A6-8F84-48B2-B8A7-C73865CC6E07}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
+
