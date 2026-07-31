@@ -1,8 +1,21 @@
 # Outlook COM MCP Server
 
+Microsoft Graph APIを利用できないWindows環境で、Classic Outlookのメールと予定表をMCPクライアントから扱うためのローカルMCPサーバーです。
+
 A local Model Context Protocol (MCP) server for reading Classic Outlook mail and calendar data and creating reply drafts through COM, without Microsoft Graph API.
 
+## できること
+
+- メールを検索し、選択したメッセージの本文を取得する
+- 予定表のイベントを取得する
+- 返信または全員返信をOutlookの下書きへ保存する
+- 選択したメールを明示的に既読または未読へ変更する
+
+送信、削除、移動、アーカイブは行いません。対象はWindows上のClassic Outlookで、現在は初期開発段階です。
+
 > [!WARNING]
+> このプロジェクトは、現在サインインしているClassic Outlookプロファイルのデータを読み取ります。MCPクライアントがツールを呼び出すと、選択したメールまたは予定表データがそのクライアントへ返されます。利用前に、所属組織のデータ取扱規定を確認してください。
+>
 > This project reads data from the currently signed-in Classic Outlook profile. When an MCP client calls a tool, the selected mail or calendar data is returned to that client. Confirm your organization's data-handling policy before use.
 
 ## Why this exists
