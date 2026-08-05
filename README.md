@@ -38,7 +38,7 @@ Early development. The server targets Windows and Classic Outlook only. New Outl
 ## Architecture
 
 ```text
-MCP client / Secure MCP Tunnel
+        MCP client
              |
              | stdio (JSON-RPC)
              v
@@ -111,28 +111,6 @@ Example configuration for a local stdio-capable MCP client:
   }
 }
 ```
-
-## Connect from ChatGPT Developer mode
-
-ChatGPT Developer mode does not start arbitrary local stdio processes directly. OpenAI Secure MCP Tunnel can launch or forward to this stdio server from the Windows machine that has Classic Outlook.
-
-Conceptual tunnel profile:
-
-```powershell
-$env:CONTROL_PLANE_API_KEY = "<runtime-api-key>"
-
-tunnel-client init `
-  --profile outlook-com `
-  --tunnel-id tunnel_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx `
-  --mcp-command "C:\Apps\OutlookComMcp\OutlookComMcp.exe"
-
-tunnel-client doctor --profile outlook-com --explain
-tunnel-client run --profile outlook-com
-```
-
-Then create a developer-mode app in ChatGPT, choose **Tunnel** as the connection type, and select the associated tunnel.
-
-See the [Secure MCP Tunnel documentation](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels) for current setup, permissions, and networking requirements.
 
 ## Safety boundaries
 
