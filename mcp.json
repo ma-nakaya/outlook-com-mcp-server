@@ -1,0 +1,23 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "outlook-com": {
+      "type": "stdio",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "${PLUGIN_ROOT}/src/OutlookComMcp/OutlookComMcp.csproj",
+        "--configuration",
+        "Release",
+        "--property:BaseOutputPath=${PLUGIN_DATA}/bin/",
+        "--property:BaseIntermediateOutputPath=${PLUGIN_DATA}/obj/"
+      ],
+      "env": {
+        "DOTNET_CLI_HOME": "${PLUGIN_DATA}/dotnet",
+        "NUGET_PACKAGES": "${PLUGIN_DATA}/nuget"
+      },
+      "cwd": "${PLUGIN_ROOT}"
+    }
+  }
+}
