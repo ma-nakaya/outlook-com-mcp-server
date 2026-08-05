@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "outlook-com-mcp",
+  "version": "0.1.0",
+  "description": "Read Classic Outlook mail and calendar data and perform explicitly authorized read-state or reply-draft changes with a portable MCP usage skill.",
+  "author": {
+    "name": "ma-nakaya",
+    "url": "https://github.com/ma-nakaya"
+  },
+  "homepage": "https://github.com/ma-nakaya/outlook-com-mcp-server#readme",
+  "repository": "https://github.com/ma-nakaya/outlook-com-mcp-server",
+  "keywords": [
+    "mcp",
+    "classic-outlook",
+    "email",
+    "calendar",
+    "agent-skills"
+  ]
+}
