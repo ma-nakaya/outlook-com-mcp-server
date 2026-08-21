@@ -147,4 +147,6 @@ No Microsoft Graph dependency or Outlook credential is stored by this project.
 
 ## License
 
-No license has been selected yet. Until one is added, normal copyright restrictions apply.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+Copyright (c) 2026 ma-nakaya
