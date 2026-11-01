@@ -1,41 +1,22 @@
 # Outlook COM MCP Server
 
-Microsoft Graph APIを利用できないWindows環境で、Classic Outlookのメールと予定表をMCPクライアントから扱うためのローカルMCPサーバーです。
-
-A local Model Context Protocol (MCP) server for reading Classic Outlook mail and calendar data and creating reply drafts through COM, without Microsoft Graph API.
-
-## できること
-
-- メールを検索し、選択したメッセージの本文を取得する
-- 予定表のイベントを取得する
-- 返信または全員返信をOutlookの下書きへ保存する
-- 選択したメールを明示的に既読または未読へ変更する
-
-送信、削除、移動、アーカイブは行いません。対象はWindows上のClassic Outlookで、現在は初期開発段階です。
+Microsoft Graph API を利用できない Windows 環境で、Classic Outlook のメールと予定表を MCP クライアントから扱うためのローカル MCP サーバーです。Outlook の COM オブジェクトモデルを経由するため、Graph のアプリ登録・テナント同意・権限は不要です。
 
 > [!WARNING]
-> このプロジェクトは、現在サインインしているClassic Outlookプロファイルのデータを読み取ります。MCPクライアントがツールを呼び出すと、選択したメールまたは予定表データがそのクライアントへ返されます。利用前に、所属組織のデータ取扱規定を確認してください。
->
-> This project reads data from the currently signed-in Classic Outlook profile. When an MCP client calls a tool, the selected mail or calendar data is returned to that client. Confirm your organization's data-handling policy before use.
+> このサーバーは、現在サインインしている Classic Outlook プロファイルのデータを読み取ります。MCP クライアントがツールを呼び出すと、選択したメールや予定表のデータがそのクライアントへ返されます。利用前に、所属組織のデータ取扱規定を確認してください。
 
-## Why this exists
+現在は初期開発段階です。
 
-Some environments cannot use Microsoft Graph because app registration, tenant consent, or Graph permissions are unavailable. This server uses the Outlook desktop COM object model as a local alternative.
+## 特徴
 
-It is deliberately narrow:
+- メールの検索、フォルダーツリーの列挙、選択したメッセージの本文取得
+- 予定表イベントの取得
+- 返信／全員返信を Outlook の下書きへ保存
+- 選択したメールの既読・未読を明示的に変更
 
-- Read mail metadata and selected message bodies.
-- Read calendar events.
-- Enumerate Inbox, Sent, or Drafts folder trees and search nested folders.
-- Save a reply or reply-all message to Outlook Drafts.
-- Explicitly mark one selected message as read or unread.
-- Never send, delete, move, or archive messages.
+送信、削除、移動、アーカイブは意図的に実装していません。対象は Windows 上の Classic Outlook のみで、新しい Outlook for Windows は COM オートメーションに非対応です。
 
-## Status
-
-Early development. The server targets Windows and Classic Outlook only. New Outlook for Windows does not support COM automation.
-
-## Architecture
+## 仕組み
 
 ```text
         MCP client
@@ -49,31 +30,18 @@ Early development. The server targets Windows and Classic Outlook only. New Outl
         Classic Outlook
 ```
 
-The implementation uses late-bound COM instead of redistributing Outlook interop assemblies. Outlook calls run on one dedicated single-threaded apartment (STA) thread.
+Outlook の interop アセンブリを再配布せず、遅延バインディング（late binding）で COM を呼び出します。Outlook への呼び出しは専用の STA（single-threaded apartment）スレッドで実行します。
 
-## MCP tools
+## 動作要件
 
-| Tool | Effect | Notes |
-| --- | --- | --- |
-| `search_emails` | Read-only | Searches Inbox, Sent, Drafts, or a supplied folder. Supports recursive and unread-only searches. Body previews are opt-in. |
-| `list_mail_folders` | Read-only | Lists a mail folder tree and returns folder/store IDs for targeted searches. |
-| `get_email` | Read-only | Reads one message using the `EmailId` and `StoreId` returned by search. |
-| `set_email_read_state` | State change | Explicitly marks one selected message as read or unread. Search and read tools never change this state. |
-| `list_calendar_events` | Read-only | Lists events overlapping an ISO 8601 range of up to 31 days. |
-| `create_reply_draft` | Additive write | Saves a reply draft. It does not send mail. Reply-all must be explicitly requested. |
+- Windows 10 以降
+- Classic Outlook for Windows（インストールとプロファイル設定が済んでいること）
+- アクセス対象の Outlook プロファイルと同じユーザーの対話型 Windows セッション
+- ビルドには .NET 8 SDK、フレームワーク依存リリースの実行には .NET 8 Desktop Runtime
 
-Tool results use structured content and bounded result sizes. Email bodies are untrusted input and must not be interpreted as instructions.
+`LocalSystem`、Windows サービス、ヘッドレスなサーバープロセスとしての実行は想定していません。
 
-## Requirements
-
-- Windows 10 or later
-- Classic Outlook for Windows, installed and configured
-- An interactive Windows session for the same user whose Outlook profile is accessed
-- .NET 8 SDK to build, or .NET 8 Desktop Runtime for a framework-dependent release
-
-The server is not intended to run as `LocalSystem`, a Windows service, or a headless server process.
-
-## Build
+## セットアップ
 
 ```powershell
 dotnet restore OutlookComMcp.sln
@@ -81,7 +49,7 @@ dotnet build OutlookComMcp.sln --configuration Release
 dotnet test OutlookComMcp.sln --configuration Release
 ```
 
-Publish a framework-dependent Windows executable:
+フレームワーク依存の Windows 実行ファイルを発行する場合:
 
 ```powershell
 dotnet publish src/OutlookComMcp/OutlookComMcp.csproj `
@@ -91,15 +59,15 @@ dotnet publish src/OutlookComMcp/OutlookComMcp.csproj `
   --output artifacts/win-x64
 ```
 
-## Run over stdio
+## 使い方
 
-The server writes MCP protocol messages to stdout. Diagnostics go to stderr.
+stdio サーバーとして起動します。stdout は MCP プロトコル専用で、診断出力は stderr に出します。
 
 ```powershell
 dotnet run --project src/OutlookComMcp/OutlookComMcp.csproj
 ```
 
-Example configuration for a local stdio-capable MCP client:
+MCP クライアントへの登録例（stdio 対応クライアント）:
 
 ```json
 {
@@ -112,41 +80,47 @@ Example configuration for a local stdio-capable MCP client:
 }
 ```
 
-## Safety boundaries
+### MCP ツール
 
-- No send tool exists.
-- No delete, move, archive, or send tool exists.
-- `create_reply_draft` is annotated as a non-read-only, non-idempotent tool so clients can require confirmation.
-- `set_email_read_state` is non-read-only but idempotent. It requires an exact email/store ID and never runs implicitly.
-- Reply-all defaults to `false`.
-- Search results, body size, scan count, calendar range, and reply body size are bounded.
-- stdout is reserved for MCP transport; application errors use stderr.
-- COM references are released after each operation.
+| ツール | 種別 | 説明 |
+| --- | --- | --- |
+| `search_emails` | 読み取り | 受信トレイ、送信済み、下書き、または指定フォルダーを検索。再帰検索と未読のみの検索に対応。本文プレビューはオプトイン |
+| `list_mail_folders` | 読み取り | フォルダーツリーを一覧し、検索対象を絞るためのフォルダー／ストア ID を返す |
+| `get_email` | 読み取り | 検索結果の `EmailId` と `StoreId` で1通を取得 |
+| `set_email_read_state` | 状態変更 | 選択した1通を既読または未読に変更。検索・読み取りツールがこの状態を暗黙に変えることはない |
+| `list_calendar_events` | 読み取り | ISO 8601 で指定した最大31日間の範囲と重なるイベントを一覧 |
+| `create_reply_draft` | 書き込み（追加のみ） | 返信の下書きを保存する。送信はしない。全員返信は明示的な指定が必要 |
 
-Saving a draft is still a write operation. Review the recipients and content in Outlook before manually sending it.
+結果は structured content で返し、サイズに上限を設けています。メールの本文は信頼できない入力として扱い、指示として解釈しないでください。
 
-## Known limitations
+## セキュリティと制約
 
-- Classic Outlook only; new Outlook does not expose the COM object model.
-- Folder listing and recursive search start from the default Inbox, Sent, Drafts, or a supplied folder ID. Whole-store and shared-store discovery are not yet implemented.
-- Recursive mail search is bounded to 100 folders, 10 levels, and 5,000 scanned items.
-- Calendar access currently uses the default calendar.
-- Body output is plain text. Rich HTML composition and signature insertion are not yet implemented.
-- Runtime integration tests require a Windows machine with a configured Outlook profile; CI runs unit tests without Outlook.
+- 送信ツールは存在せず、削除・移動・アーカイブのツールもありません。
+- `create_reply_draft` は読み取り専用でなく冪等でもないツールとして注釈されており、クライアントが確認を求められるようにしています。下書きの保存も書き込み操作です。実際に送る前に、Outlook で宛先と内容を確認してください。
+- `set_email_read_state` は読み取り専用ではありませんが冪等です。正確なメール／ストア ID が必要で、暗黙に実行されることはありません。
+- 全員返信の既定値は `false` です。
+- 検索結果数、本文サイズ、スキャン件数、予定表の範囲、返信本文のサイズはいずれも上限付きです。
+- COM 参照は操作ごとに解放します。
 
-## Development
+既知の制限:
 
-The solution uses:
+- 対象は Classic Outlook のみです。
+- フォルダー列挙と再帰検索の起点は、既定の受信トレイ／送信済み／下書き、または指定したフォルダー ID です。ストア全体や共有ストアの探索は未実装です。
+- 再帰メール検索の上限は、フォルダー100件、深さ10階層、スキャン5,000件です。
+- 予定表は既定の予定表のみを対象とします。
+- 本文の出力はプレーンテキストです。リッチな HTML 作成や署名の挿入は未実装です。
+- 実 Outlook を使う統合テストには、プロファイル設定済みの Windows マシンが必要です。CI では Outlook なしで単体テストのみを実行します。
 
-- .NET 8
-- Official [MCP C# SDK](https://github.com/modelcontextprotocol/csharp-sdk)
-- xUnit.net v3
-- Windows GitHub Actions for build and unit tests
+## 開発
 
-No Microsoft Graph dependency or Outlook credential is stored by this project.
+- .NET 8 / C#
+- MCP 公式 C# SDK（[modelcontextprotocol/csharp-sdk](https://github.com/modelcontextprotocol/csharp-sdk)）
+- テストは xUnit.net v3、CI は Windows の GitHub Actions でビルドと単体テストを実行
 
-## License
+Microsoft Graph への依存はなく、Outlook の資格情報をこのプロジェクトが保存することもありません。
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+## ライセンス
+
+MIT License の下で公開しています。詳細は [LICENSE](LICENSE) を参照してください。
 
 Copyright (c) 2026 ma-nakaya
